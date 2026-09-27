@@ -1,0 +1,44 @@
+{
+  "name": "pdf-view-coords",
+  "version": "0.1.0",
+  "description": "Draw on PDF pages with pdf-lib in the coordinates a viewer shows \u2014 handles /Rotate and CropBox.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.ts",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "pdf",
+    "pdf-lib",
+    "rotate",
+    "cropbox",
+    "coordinates",
+    "signature",
+    "pdfjs",
+    "e-signature"
+  ],
+  "author": "Alon Drilich",
+  "license": "MIT",
+  "homepage": "https://github.com/AlonDrilich/pdf-view-coords#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlonDrilich/pdf-view-coords.git"
+  },
+  "peerDependencies": {
+    "pdf-lib": "^1.17.0"
+  },
+  "devDependencies": {
+    "pdf-lib": "^1.17.1",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

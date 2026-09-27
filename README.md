@@ -2,6 +2,8 @@
 
 Draw on PDF pages with [pdf-lib](https://pdf-lib.js.org/) **in the coordinates a viewer actually shows** — correct on rotated and cropped pages.
 
+**[Live demo →](https://alondrilich.github.io/pdf-view-coords/)** Click on a rotated page and see where plain pdf-lib puts a signature, and where this package does. Runs in your browser; you can try your own PDF.
+
 ## The problem
 
 pdf-lib draws in a page's raw user space: origin at the bottom-left of the MediaBox, y pointing up, and the page's `/Rotate` entry ignored. A PDF viewer — and pdf.js, which most web apps render with — shows the **CropBox**, turned by **`/Rotate`**, with the origin at the top-left.

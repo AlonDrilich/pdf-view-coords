@@ -1,7 +1,7 @@
 {
   "name": "pdf-view-coords",
   "version": "0.1.0",
-  "description": "Draw on PDF pages with pdf-lib in the coordinates a viewer shows \u2014 handles /Rotate and CropBox.",
+  "description": "Draw on PDF pages with pdf-lib in the coordinates a viewer shows — handles /Rotate and CropBox.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,7 +12,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test test/*.test.ts",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "docs": "npm run build && cp dist/index.js docs/pdf-view-coords.js"
   },
   "keywords": [
     "pdf",

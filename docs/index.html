@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rotated PDF pages with pdf-lib — live demo | pdf-view-coords</title>
+  <meta name="description" content="See why pdf-lib puts signatures, images and text in the wrong place on rotated or cropped PDF pages, and how pdf-view-coords fixes it. Runs in your browser; nothing is uploaded.">
+  <link rel="canonical" href="https://alondrilich.github.io/pdf-view-coords/">
+  <script type="importmap">
+    { "imports": { "pdf-lib": "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm" } }
+  </script>
+  <style>
+    :root {
+      --bg: #f7f7f9; --card: #ffffff; --text: #16161d; --muted: #5d5f6b; --line: #e3e4ea;
+      --accent: #4f46e5; --bad: #c2410c; --good: #15803d; --code: #f0f1f5;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111116; --card: #1a1a21; --text: #ececf1; --muted: #a0a2ae; --line: #2c2d36;
+        --accent: #8b85ff; --bad: #fb923c; --good: #4ade80; --code: #22232b;
+        color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 1120px; margin: 0 auto; padding: 48px 16px 64px; }
+    h1 { font-size: clamp(1.7rem, 3.5vw, 2.4rem); line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.02em; }
+    h2 { font-size: 1.15rem; margin: 40px 0 12px; }
+    p { margin: 0 0 12px; }
+    .lede { color: var(--muted); max-width: 70ch; font-size: 1.05rem; }
+    a { color: var(--accent); }
+    code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+    pre { background: var(--code); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-x: auto; margin: 0 0 12px; }
+    pre code { background: none; padding: 0; font-size: 0.86rem; line-height: 1.6; }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin: 28px 0 20px; }
+    .group { display: flex; align-items: center; gap: 8px; }
+    .label { color: var(--muted); font-size: 0.9rem; }
+    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
+    .seg button { border: 0; background: none; color: var(--text); font: inherit; font-size: 0.9rem; padding: 6px 12px; cursor: pointer; }
+    .seg button + button { border-left: 1px solid var(--line); }
+    .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+    .seg button:disabled { cursor: not-allowed; opacity: 0.5; }
+    label.check { display: inline-flex; gap: 6px; align-items: center; font-size: 0.9rem; cursor: pointer; }
+    .file { font-size: 0.9rem; flex-wrap: wrap; }
+    .file .label, .nw { white-space: nowrap; }
+    .file input { font: inherit; font-size: 0.85rem; max-width: 100%; }
+    .linkbtn { border: 0; background: none; color: var(--accent); font: inherit; font-size: 0.9rem; cursor: pointer; padding: 0; text-decoration: underline; }
+
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+    figcaption { font-size: 0.9rem; font-weight: 600; margin-bottom: 10px; min-height: 2.9em; }
+    figcaption small { display: block; font-weight: 400; color: var(--muted); }
+    canvas { display: block; width: 100%; height: auto; background: #fff; border-radius: 4px; box-shadow: 0 0 0 1px var(--line); }
+    #input { cursor: crosshair; }
+    .verdict { margin: 10px 0 0; font-size: 0.9rem; font-weight: 600; min-height: 1.5em; }
+    .verdict.bad { color: var(--bad); }
+    .verdict.good { color: var(--good); }
+    .status { color: var(--muted); font-size: 0.85rem; margin-top: 8px; min-height: 1.3em; }
+
+    footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Rotated PDF pages with <span class="nw">pdf-lib</span></h1>
+  <p class="lede">
+    pdf-lib draws in a page's raw coordinates: origin at the bottom-left of the MediaBox, and the page's
+    <code>/Rotate</code> and CropBox ignored. A viewer shows the cropped page, turned. Scanned documents are
+    often stored sideways with <code>/Rotate 90</code>, so a signature placed where the user clicked lands
+    somewhere else. <strong>Click the page below</strong> and compare.
+  </p>
+
+  <div class="controls" role="group" aria-label="Sample page settings">
+    <div class="group">
+      <span class="label" id="rot-label">Page stored with /Rotate</span>
+      <div class="seg" id="rotation" aria-labelledby="rot-label">
+        <button type="button" data-r="0" aria-pressed="false">0</button>
+        <button type="button" data-r="90" aria-pressed="true">90</button>
+        <button type="button" data-r="180" aria-pressed="false">180</button>
+        <button type="button" data-r="270" aria-pressed="false">270</button>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="crop" checked> Cropped (CropBox smaller than MediaBox)</label>
+    <div class="group file">
+      <span class="label">or your own PDF:</span>
+      <input type="file" id="file" accept="application/pdf">
+      <button type="button" class="linkbtn" id="reset" hidden>back to the sample</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <figure>
+      <figcaption>1. Click where the signature should go<small id="page-info">&nbsp;</small></figcaption>
+      <canvas id="input" aria-label="The PDF page. Click to choose where the signature goes."></canvas>
+    </figure>
+    <figure>
+      <figcaption>pdf-lib <code>drawRectangle</code><small>using <code>page.getSize()</code>, as most code does</small></figcaption>
+      <canvas id="naive" aria-label="Result with plain pdf-lib"></canvas>
+      <p class="verdict" id="naive-verdict" aria-live="polite"></p>
+    </figure>
+    <figure>
+      <figcaption>pdf-view-coords <code>drawRectangleInView</code><small>same click, mapped to what the viewer shows</small></figcaption>
+      <canvas id="fixed" aria-label="Result with pdf-view-coords"></canvas>
+      <p class="verdict good" id="fixed-verdict" aria-live="polite"></p>
+    </figure>
+  </div>
+  <p class="status" id="status" aria-live="polite">Loading…</p>
+
+  <h2>The difference in code</h2>
+<pre><code>// What most code does: correct only on pages with no /Rotate and no crop
+const { width, height } = page.getSize();
+page.drawImage(signature, {
+  x: fx * width,
+  y: height - (fy + fh) * height,
+  width: fw * width,
+  height: fh * height,
+});
+
+// With pdf-view-coords: fractions of the page as displayed, correct on every page
+import { viewport, rectFromFractions, drawImageInView } from "pdf-view-coords";
+
+drawImageInView(page, signature, rectFromFractions(viewport(page), { x: fx, y: fy, width: fw, height: fh }));</code></pre>
+  <p><code>npm install github:AlonDrilich/pdf-view-coords pdf-lib</code> · MIT · <a href="https://github.com/AlonDrilich/pdf-view-coords">source and API on GitHub</a></p>
+
+  <footer>
+    <p>
+      Everything on this page runs in your browser; a PDF you pick is never uploaded.
+      This is the placement logic behind <a href="https://esign.website/">esign.website</a>,
+      a free PDF signer that works the same way: the document never leaves your device.
+    </p>
+  </footer>
+</main>
+
+<script type="module">
+  import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
+  import { viewport, rectFromFractions, drawRectangleInView, drawTextInView } from "./pdf-view-coords.js";
+  import * as pdfjs from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs";
+
+  pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+
+  const $ = (id) => document.getElementById(id);
+  const BOX = { width: 0.36, height: 0.075 };
+  const RED = rgb(0.76, 0.25, 0.05);
+  const GREEN = rgb(0.08, 0.5, 0.24);
+  const state = { rotation: 90, crop: true, userBytes: null, userName: "", click: { x: 0.28, y: 0.835 } };
+
+  /** A one-page "rental agreement" that looks the same on screen whatever its /Rotate and crop. */
+  async function sampleBytes(rotation, crop) {
+    const doc = await PDFDocument.create();
+    // A sideways scan is a landscape MediaBox turned upright by /Rotate.
+    const page = doc.addPage(rotation % 180 ? [792, 612] : [612, 792]);
+    page.setRotation(degrees(rotation));
+    if (crop) {
+      const { width, height } = page.getSize();
+      page.setCropBox(width * 0.06, height * 0.05, width * 0.86, height * 0.88);
+    }
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const vp = viewport(page);
+    const W = vp.width, H = vp.height, m = W * 0.1;
+    const ink = rgb(0.12, 0.12, 0.17), soft = rgb(0.82, 0.84, 0.88), note = rgb(0.5, 0.5, 0.56);
+
+    drawTextInView(page, "RENTAL AGREEMENT", { x: m, y: H * 0.08 }, { font: bold, size: W * 0.05, color: ink });
+    for (let i = 0; i < 13; i++) {
+      const w = (W - 2 * m) * (i % 5 === 4 ? 0.55 : 1);
+      drawRectangleInView(page, { x: m, y: H * 0.18 + i * H * 0.037, width: w, height: H * 0.009 }, { color: soft });
+    }
+    drawTextInView(page, "Tenant signature", { x: m, y: H * 0.77 }, { font, size: W * 0.026, color: ink });
+    drawRectangleInView(page, { x: m, y: H * 0.875, width: W * 0.5, height: 1.2 }, { color: ink });
+    drawTextInView(page, `Stored with /Rotate ${rotation}${crop ? ", cropped" : ""}`, { x: m, y: H * 0.93 }, { font, size: W * 0.022, color: note });
+    return doc.save();
+  }
+
+  async function render(bytes, canvas, dot) {
+    // pdf.js transfers the buffer to its worker, so give it a copy.
+    const pdf = await pdfjs.getDocument({ data: bytes.slice() }).promise;
+    try {
+      const page = await pdf.getPage(1);
+      const base = page.getViewport({ scale: 1 });
+      const scale = (Math.min(canvas.parentElement.clientWidth, 420) / base.width) * Math.max(window.devicePixelRatio || 1, 1.5);
+      const v = page.getViewport({ scale });
+      canvas.width = Math.round(v.width);
+      canvas.height = Math.round(v.height);
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport: v }).promise;
+      if (dot) {
+        ctx.fillStyle = "#4f46e5";
+        ctx.beginPath();
+        ctx.arc(dot.x * canvas.width, dot.y * canvas.height, Math.max(5, canvas.width * 0.012), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } finally {
+      pdf.destroy();
+    }
+  }
+
+  function target() {
+    const x = Math.min(Math.max(state.click.x - BOX.width / 2, 0), 1 - BOX.width);
+    const y = Math.min(Math.max(state.click.y - BOX.height / 2, 0), 1 - BOX.height);
+    return { x, y, ...BOX };
+  }
+
+  /** Where the naive rectangle actually shows up, in view space, compared with the target. */
+  function judge(vp, userRect, wanted) {
+    const pts = [
+      [userRect.x, userRect.y], [userRect.x + userRect.width, userRect.y],
+      [userRect.x, userRect.y + userRect.height], [userRect.x + userRect.width, userRect.y + userRect.height],
+    ].map(([x, y]) => vp.toView(x, y));
+    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+    const got = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+    const same = Math.abs(got.x0 - wanted.x) < 1 && Math.abs(got.y0 - wanted.y) < 1 &&
+      Math.abs(got.x1 - (wanted.x + wanted.width)) < 1 && Math.abs(got.y1 - (wanted.y + wanted.height)) < 1;
+    if (same) return { ok: true, text: "✓ Same place. This page has no rotation or crop, so plain pdf-lib is fine." };
+    const visibleW = Math.min(got.x1, vp.width) - Math.max(got.x0, 0);
+    const visibleH = Math.min(got.y1, vp.height) - Math.max(got.y0, 0);
+    if (visibleW <= 0 || visibleH <= 0) return { ok: false, text: "✗ Not visible: drawn outside the part of the page a viewer shows." };
+    const partly = visibleW < got.x1 - got.x0 - 0.5 || visibleH < got.y1 - got.y0 - 0.5;
+    const turned = { 90: ", and turned sideways", 180: ", and upside down", 270: ", and turned sideways" }[vp.rotation] ?? "";
+    return { ok: false, text: `✗ Wrong place${partly ? ", partly off the page" : ""}${turned}.` };
+  }
+
+  // One update at a time: pdf.js refuses a second render() on a canvas that is
+  // still drawing. Clicks that arrive meanwhile collapse into one more pass.
+  let busy = false, again = false;
+  async function update() {
+    if (busy) { again = true; return; }
+    busy = true;
+    try {
+      do { again = false; await draw(); } while (again);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function draw() {
+    $("status").textContent = "Rendering…";
+    try {
+      const base = state.userBytes ?? await sampleBytes(state.rotation, state.crop);
+      const f = target();
+
+      // Plain pdf-lib, the way most code places a click.
+      const naiveDoc = await PDFDocument.load(base);
+      const np = naiveDoc.getPage(0);
+      const nFont = await naiveDoc.embedFont(StandardFonts.HelveticaBold);
+      const { width, height } = np.getSize();
+      const nr = { x: f.x * width, y: height - (f.y + f.height) * height, width: f.width * width, height: f.height * height };
+      const vpN = viewport(np);
+      np.drawRectangle({ ...nr, color: RED, opacity: 0.12, borderColor: RED, borderWidth: 2 });
+      np.drawText("signature", { x: nr.x + 8, y: nr.y + nr.height * 0.32, size: nr.height * 0.42, font: nFont, color: RED });
+      const naiveBytes = await naiveDoc.save();
+
+      // pdf-view-coords, same fractions.
+      const fixedDoc = await PDFDocument.load(base);
+      const fp = fixedDoc.getPage(0);
+      const fFont = await fixedDoc.embedFont(StandardFonts.HelveticaBold);
+      const vp = viewport(fp);
+      const r = rectFromFractions(vp, f);
+      drawRectangleInView(fp, r, { color: GREEN, opacity: 0.12, borderColor: GREEN, borderWidth: 2 });
+      drawTextInView(fp, "signature", { x: r.x + 8, y: r.y + r.height * 0.26 }, { font: fFont, size: r.height * 0.42, color: GREEN });
+      const fixedBytes = await fixedDoc.save();
+
+      const verdict = judge(vpN, nr, rectFromFractions(vpN, f));
+      await Promise.all([
+        render(base, $("input"), state.click),
+        render(naiveBytes, $("naive")),
+        render(fixedBytes, $("fixed")),
+      ]);
+      $("naive-verdict").textContent = verdict.text;
+      $("naive-verdict").className = "verdict " + (verdict.ok ? "good" : "bad");
+      $("fixed-verdict").textContent = "✓ Where you clicked, upright.";
+      const crop = fp.getCropBox(), media = fp.getMediaBox();
+      const cropped = Math.abs(crop.width - media.width) > 0.5 || Math.abs(crop.height - media.height) > 0.5;
+      $("page-info").textContent = `${state.userBytes ? state.userName + ", page 1: " : ""}/Rotate ${vp.rotation}${cropped ? ", cropped" : ", no crop"}`;
+      $("status").textContent = "";
+    } catch (err) {
+      console.error(err);
+      $("status").textContent = "Could not render this PDF: " + (err && err.message ? err.message : err);
+    }
+  }
+
+  function setSampleControls(enabled) {
+    document.querySelectorAll("#rotation button").forEach((b) => (b.disabled = !enabled));
+    $("crop").disabled = !enabled;
+    $("reset").hidden = enabled;
+  }
+
+  document.querySelectorAll("#rotation button").forEach((b) =>
+    b.addEventListener("click", () => {
+      state.rotation = Number(b.dataset.r);
+      document.querySelectorAll("#rotation button").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+      update();
+    }),
+  );
+  $("crop").addEventListener("change", (e) => { state.crop = e.target.checked; update(); });
+  $("input").addEventListener("click", (e) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    state.click = { x: (e.clientX - box.left) / box.width, y: (e.clientY - box.top) / box.height };
+    update();
+  });
+  $("file").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    state.userBytes = new Uint8Array(await file.arrayBuffer());
+    state.userName = file.name;
+    state.click = { x: 0.5, y: 0.5 };
+    setSampleControls(false);
+    update();
+  });
+  $("reset").addEventListener("click", () => {
+    state.userBytes = null;
+    $("file").value = "";
+    state.click = { x: 0.28, y: 0.835 };
+    setSampleControls(true);
+    update();
+  });
+  let resizeTimer;
+  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(update, 200); });
+
+  update();
+</script>
+</body>
+</html>
